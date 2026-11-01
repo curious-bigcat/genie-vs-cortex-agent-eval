@@ -1,0 +1,77 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 2114 >>
+stream
+BT /F1 10 Tf 50 790 Td 14 TL
+(MASTER SUPPLY AGREEMENT - MSA-SUP-104) '
+(Between: Contoso Manufacturing Holdings \("Buyer"\) and INITECH PARTS \("Supplier"\), Supplier ID) '
+(SUP-104.) '
+(Supplier region: AMER. Supplier tier: TIER_1. Effective Date: 1 January 2025. Term: 36 months.) '
+() '
+(1. Definitions) '
+(1.1 "Promised Date" means the delivery date stated on the purchase order.) '
+(1.2 "Financial Exposure" means the invoice value \(quantity multiplied by unit price\) of Late) '
+(Deliveries plus documented unplanned production downtime cost attributable to Supplier. Planned) '
+(maintenance downtime is excluded.) '
+() '
+(2. Scope. Supplier shall supply components to Buyer plants in AMER, EMEA and APAC per issued) '
+(purchase orders.) '
+() '
+(3. Pricing. Prices are fixed per the price schedule; changes require 90 days written notice.) '
+() '
+(4. Quality. Supplier shall maintain ISO 9001 certification and a defect rate below 500 PPM.) '
+() '
+(5. Delivery and Grace Period) '
+(5.1 A delivery is a "Late Delivery" if received more than 3 calendar days after the Promised) '
+(Date.) '
+(5.2 Cancelled or undelivered purchase orders are not Late Deliveries for the purposes of) '
+(Section 7.) '
+() '
+(6. Reporting. Supplier shall provide weekly delivery performance reports.) '
+() '
+(7. Liquidated Damages for Late Delivery) '
+(7.1 Buyer may claim liquidated damages equal to 6.0% of Financial Exposure for the contract) '
+(year.) '
+() '
+(8. Limitation of Liability) '
+(8.1 Aggregate liquidated damages under Section 7 shall not exceed USD 300,000 per contract) '
+(year.) '
+() '
+(9. Force Majeure) '
+(9.1 Neither party is liable for delay caused by events beyond reasonable control, provided) '
+(written notice is given within 5 business days.) '
+(9.2 Force Majeure must be formally declared and acknowledged by both parties to apply.) '
+() '
+(10. Termination. Buyer may terminate for convenience with 60 days notice, or immediately if) '
+(on-time delivery falls below 70% for two consecutive quarters.) '
+() '
+(11. Governing Law. This Agreement is governed by the laws of the State of Delaware.) '
+() '
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002407 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2477
+%%EOF
