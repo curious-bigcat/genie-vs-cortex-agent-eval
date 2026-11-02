@@ -140,5 +140,3 @@ Scale: 1 = hard / slow / heavy, 5 = easy / fast / light. Counts are taken from t
 | B3 Manual intervention | 1 fix; no hand-wired grants for the agent | 4 | 5 fixes; hand-made app SP grants | 2 |
 | B4 Coding required | No application code; SQL setup only | 5 | Python notebook + generated agent project you maintain | 2 |
 | **Average** | | **4.5** | | **2.0** |
-
-Note: the Databricks **Genie Agent** alone (Arm A, not run) skips the CLI and project. Its B1–B4 would sit between the two columns.

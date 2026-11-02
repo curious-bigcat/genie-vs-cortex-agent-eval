@@ -1,6 +1,6 @@
 # Genie vs Cortex: Supply Chain Risk Agent Comparison
 
-This project compares **Databricks Genie / Agent Bricks** with **Snowflake Cortex Agents (CoWork)** on the same use case, the same synthetic data and the same questions. You evaluate the answers by hand.
+This project compares a **Databricks Agent Bricks agent** with a **Snowflake Cortex Agent (CoWork)** on the same use case, the same synthetic data and the same questions. You evaluate the answers by hand.
 
 - **Background:** `agents.md` (architectures) and `genie_lab_setup_and_constraints.md` (Genie limits and failure patterns).
 - **Use case:** "A major supplier missed delivery dates. Determine the financial exposure, check the contract breach terms, and estimate the penalty we can claim."
@@ -25,8 +25,9 @@ eval/ground_truth.sql              <- optional: proves data parity across platfo
 ## 2. What is compared
 | | Databricks | Snowflake |
 |---|---|---|
-| **Arm A: low-code** | Genie Agent over tables, a Genie-generated metric view, and the contracts | Cortex Agent in CoWork: Cortex Analyst on an Autopilot-generated semantic view, plus Cortex Search on the contracts |
-| **Arm B: code-first** | Agent Bricks CLI agent (DurableAgentServer on Agent Runtime) with Genie and contract-search tools | The same Cortex Agent (one object serves CoWork and REST) |
+| **Agent** | Agent Bricks CLI agent (DurableAgentServer on Agent Runtime) | Cortex Agent (serves CoWork and REST) |
+| **Data tool** | Genie Agent over the tables and a Genie-generated metric view | Cortex Analyst on an Autopilot-generated semantic view |
+| **Contract tool** | UC function over a Vector Search index | Cortex Search service |
 
 **Fairness rules:**
 - **Same model on both:** Claude Opus 5.5. Snowflake `claude-opus-5-5` (the reference run used `auto`, which resolved to it); Agent Bricks `system.ai.claude-opus-5-5`. The Genie Agent's internal model can't be chosen, and that's recorded as a finding.
@@ -90,7 +91,7 @@ Run as ACCOUNTADMIN, in a Snowsight worksheet or with `snow sql -f <file>`.
    - Location: `SUPPLY_CHAIN_EVAL.ANALYTICS`.
    - Object name: `SC_RISK_AGENT`. Display name: *Supply Chain Risk Analyst*.
 2. **Orchestration model:** `claude-opus-5-5` (the reference run used `auto`, which resolved to it). If it isn't listed, run `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';`.
-3. **Instructions:** leave both **Orchestration instructions** and **Response instructions** empty. The Genie Agent and the Agent Bricks agent get no instructions either.
+3. **Instructions:** leave both **Orchestration instructions** and **Response instructions** empty. The Agent Bricks agent and its Genie Agent get no instructions either.
 4. **Tools → Cortex Analyst:**
    - Semantic view: `SUPPLY_CHAIN_EVAL.ANALYTICS.SV_SUPPLY_CHAIN`. Warehouse: `SC_EVAL_WH`.
    - Name: `supply_chain_data`.
@@ -111,10 +112,10 @@ Run as ACCOUNTADMIN, in a Snowsight worksheet or with `snow sql -f <file>`.
 | 1. Raw tables | Upload `data/output/csv/` and `data/output/contracts/` into the volume, run the file check (6 CSVs, 14 PDFs), then run the load cell | Row counts are 12 / 5 / 40 / 3000 / 18250 / 150 |
 | 2. **[UI]** Metric view | Catalog Explorer → `<catalog>.<schema>` → Create → Metric view → Genie Code: paste the prompt from the notebook, then save as-is | `mv_supply_chain` is visible in Catalog Explorer (review its definition there) |
 | 3. Contracts | Parse, chunk, Vector Search index, and the `search_contracts` UC function | 14 docs; the SUP-101 amendment is in the top 3 |
-| 4. **[UI]** Genie Agent | Create `SC Risk Analyst (eval)` in the Genie UI with no instructions; test it there | Genie says 513 late deliveries; the WAYNE METALS cap is USD 120,000 |
+| 4. **[UI]** Genie Agent | Create `SC Risk Analyst (eval)` in the Genie UI with no instructions. It's the data tool for the Agent Bricks agent; test it there | Genie says 513 late deliveries; the WAYNE METALS cap is USD 120,000 |
 | 5. Governance | Run **after** the baseline questions | Only PLT-02 and PLT-05 for `sc_emea_analyst` |
 
-### Step 3: Databricks Agent Bricks agent (Arm B, CLI)
+### Step 3: Databricks Agent Bricks agent (CLI)
 This uses the current Databricks pattern: the **Agent Bricks CLI** (`databricks-agentbricks`, Beta) builds a code-based agent and serves it with **DurableAgentServer** on **Agent Runtime** (Databricks Apps). The legacy options (Supervisor Agent/API, AI Playground export, Model Serving agents) are **not** used. There's no UI equivalent, so run these steps in a terminal on your laptop. Every command supports `--help`.
 
 **Prerequisites**
@@ -186,7 +187,6 @@ agentbricks endpoint invoke agent-bricks-sc-risk-agent --path /api/invocations \
 1. Open `eval/questions.md`. It has the 32 questions, the expected answer, the "wrong answer if trap hit" value, and what to check.
 2. Ask the questions in order, in **one chat session per system** (same conditions on every system):
    - **CoWork:** the *Supply Chain Risk Analyst* agent.
-   - **Genie Agent:** `SC Risk Analyst (eval)`.
    - **Agent Bricks agent:** the chat UI at the `agent-bricks-sc-risk-agent` app URL.
 3. **Q36:** ask it after running governance, as the restricted user.
 4. Record each answer and score it with the rubric below.

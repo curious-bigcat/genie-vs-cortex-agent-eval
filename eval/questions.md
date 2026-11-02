@@ -1,6 +1,6 @@
 # Evaluation questions and expected answers
 
-Ask the questions in order, in **one chat session per agent** (Snowflake CoWork, Genie Agent, Agent Bricks agent). Compare each answer with **Expected**.
+Ask the questions in order, in **one chat session per agent** (Snowflake Cortex Agent, Databricks Agent Bricks agent). Compare each answer with **Expected**.
 
 - **Wrong if trap hit:** the value you get if the agent falls into the seeded trap.
 - **Tolerance:** ±0.5% for money values.
