@@ -116,7 +116,7 @@ Scale: 1 = heavy burden, 5 = light. Scores are drafts based on the facts recorde
 | O5 | `GET_AI_OBSERVABILITY_EVENTS`: SQL, tools and timing per answer, no setup | 5 | MLflow traces set up automatically by the CLI; Genie's internal LLM tokens not exposed | 4 |
 | **Average** | | **4.4** | | **2.4** |
 
-Still to add: time to first working answer for each platform (not tracked), and O6 Governance once Q36 has been run.
+Still to add: time to first working answer for each platform (not tracked).
 
 ## Build effort (ease, speed, manual intervention, coding)
 

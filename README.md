@@ -106,7 +106,6 @@ Run as ACCOUNTADMIN in Snowsight.
 | 2 **[UI]** | Catalog Explorer → Create → **Metric view** → Genie Code; paste the prompt; save as-is | `mv_supply_chain` exists |
 | 3 | Parse, chunk, Vector Search index, `search_contracts` UC function | SUP-101 amendment ranks in the top 3 |
 | 4 **[UI]** | Create Genie Agent `SC Risk Analyst (eval)` with no instructions | Note its `<GENIE_AGENT_ID>` |
-| 5 | Governance row filter (after the baseline questions) | Only PLT-02 and PLT-05 for `sc_emea_analyst` |
 
 **Agent Bricks agent** (terminal on your laptop; Python 3.12):
 ```bash
