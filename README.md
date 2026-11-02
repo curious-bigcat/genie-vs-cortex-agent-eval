@@ -29,7 +29,6 @@ setup/databricks/       databricks_setup.ipynb
 eval/questions.md       31 questions + governance question, with expected answers
 eval/scorecard.md       scores from the reference run
 eval/observations.md    Databricks shortcomings and other findings
-eval/usage_queries.sql  tool calls and latency from the traces
 eval/ground_truth.sql   optional: checks the data matches on both platforms
 docs/architecture.png   architecture and results diagram
 ```
@@ -148,7 +147,22 @@ agentbricks doctor . && agentbricks deploy    # prints the app URL
    | Correct | **Y** = matches expected (±0.5% for money), **P** = partly right, **N** = wrong |
    | Grounded | 1–5: 5 = every number traces to SQL, results or a cited clause |
    | Relevant | 1–5 |
-   | Tool calls and latency | From the traces: see [`eval/usage_queries.sql`](eval/usage_queries.sql) |
+   | Tool calls and latency | From the traces (see below) |
 
 3. **Q36:** ask it after the governance step, as the restricted user.
 4. **Optional:** run `eval/ground_truth.sql` on both platforms to confirm the data matches.
+
+**Tool calls and latency per question**
+
+- **Snowflake:** run in Snowsight. Each SQL tool call shows up as two spans, so divide SQL spans by 2.
+  ```sql
+  WITH e AS (SELECT * FROM TABLE(SNOWFLAKE.LOCAL.GET_AI_OBSERVABILITY_EVENTS(
+               'SUPPLY_CHAIN_EVAL', 'ANALYTICS', 'SC_RISK_AGENT', 'CORTEX AGENT')) WHERE RECORD_TYPE = 'SPAN')
+  SELECT MIN(START_TIMESTAMP) AS started,
+         MAX(IFF(RECORD:name = 'AgentV2RequestResponseInfo', RECORD_ATTRIBUTES:"ai.observability.record_root.input"::STRING, NULL)) AS question,
+         DATEDIFF('ms', MIN(START_TIMESTAMP), MAX(TIMESTAMP)) / 1000 AS latency_s,
+         COUNT_IF(RECORD_ATTRIBUTES:"snow.ai.observability.agent.tool.id" IS NOT NULL) AS tool_spans,
+         LISTAGG(DISTINCT RECORD_ATTRIBUTES:"snow.ai.observability.agent.planning.model"::STRING, ',') AS model
+  FROM e GROUP BY RECORD_ATTRIBUTES:"ai.observability.record_id" ORDER BY started;
+  ```
+- **Databricks:** from the `sc-risk-agent` project folder, run `agentbricks tracing list`, then `agentbricks tracing get <trace_id>` for each trace's duration and tool spans.
