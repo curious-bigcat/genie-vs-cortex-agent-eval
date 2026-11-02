@@ -130,7 +130,7 @@ Scale: 1 = hard / slow / heavy, 5 = easy / fast / light. Counts are taken from t
 | UI steps | Autopilot wizard (~5 clicks), agent form (~6 fields), add to CoWork | Metric view (Genie Code prompt), Genie Agent space, app service principal grants |
 | CLI commands | 0 | ~12 (install, login, init, 2 × tools add, doctor, dev, deploy, invoke) |
 | Generated code to own | None | Full Agent Bricks project (`agent/`, `runtime/`, `tests/`, demo tools), versioned outside the platform |
-| Manual grants | 1 GRANT line (governance) | Deploy grants the tools it declares; USE CATALOG, USE SCHEMA, SELECT and index SELECT for the app SP are by hand |
+| Manual grants | None | Deploy grants the tools it declares; USE CATALOG, USE SCHEMA, SELECT and index SELECT for the app SP are by hand |
 | Wait points | Autopilot suggestions (a few minutes) | Vector index sync, first deploy (a few minutes), redeploy (~50 s) per change |
 | Manual fixes during evaluation | Chunk headers | Chunk headers; CLI install and host URL fix; demo tool clean-up; Opus 5.5 Responses API switch; metric view `record_type` filter bug (unresolved) |
 | How a change is made | Edit the spec, then commit a version and set it as default (SQL or UI) | Edit code, then redeploy |

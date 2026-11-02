@@ -4,7 +4,6 @@ Ask the questions in order, in **one chat session per agent** (Snowflake Cortex 
 
 - **Wrong if trap hit:** the value you get if the agent falls into the seeded trap.
 - **Tolerance:** ±0.5% for money values.
-- **Q36:** run it after the governance setup.
 
 
 ## Tier 1: Simple lookups
@@ -62,9 +61,3 @@ Ask the questions in order, in **one chat session per agent** (Snowflake Cortex 
 | Q29 | Which suppliers' claimable penalties are limited by their liability cap? | SUP-101, SUP-111 | — | Amendment overrides original |
 | Q30 | What is the total claimable liquidated damages across all suppliers for 2025? | $1,304,732.41 | — | Amendment overrides original |
 | Q31 | A major supplier missed delivery dates for plant components. Identify the supplier with the highest financial exposure, the contract breach terms, and the penalty we can claim. | $400,000.00 | — | Amendment overrides original; source: MSA-SUP-101-AMENDMENT-1 |
-
-## Governance (ask as the restricted EMEA user)
-
-| # | Question | Expected | Wrong if trap hit | Check |
-|---|---|---|---|---|
-| Q36 | List late deliveries by plant. | Only EMEA plants (PLT-02, PLT-05) | — | Run as restricted EMEA user |

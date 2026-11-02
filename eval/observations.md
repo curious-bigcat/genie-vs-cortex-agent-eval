@@ -49,7 +49,7 @@ These errors return plausible-looking numbers, so they're easy to miss without a
 | Languages | SQL | Python, SQL, shell |
 | Local tooling | None | Python 3.12, `uv`, Databricks CLI (sudo), `databricks-agentbricks` |
 | Code to own | None | Generated agent project (`agent/`, `runtime/`, `tests/`) + notebook |
-| Manual grants | 1 line (governance test) | App service principal: USE CATALOG / SCHEMA, SELECT, vector index SELECT |
+| Manual grants | None | App service principal: USE CATALOG / SCHEMA, SELECT, vector index SELECT |
 | Manual fixes during the evaluation | 1 (chunk headers) | 5 (chunk headers, CLI install / host URL, demo tools, Responses API switch, metric view bug unresolved) |
 
 ## 5. Retrieval and observability
@@ -78,4 +78,4 @@ These errors return plausible-looking numbers, so they're easy to miss without a
 
 - One run per platform, on synthetic data with seeded traps that target known Genie failure patterns.
 - Questions were sent through the APIs, not the chat UIs.
-- The governance question (Q36) and a token or cost comparison weren't completed.
+- A token or cost comparison wasn't completed.
