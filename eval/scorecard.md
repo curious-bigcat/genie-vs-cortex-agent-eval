@@ -1,82 +1,97 @@
-# Scorecard (running)
+# Scorecard
 
-Snowflake Cortex Agent (CoWork, `SC_RISK_AGENT` VERSION$2) vs Databricks Agent Bricks, **default configs**: Snowflake model `auto` (claude-opus-5-5), Agent Bricks template default claude-sonnet-4-5. Both run with no instructions and the same two tools (structured data + contract search). Each platform runs all questions in a single session. Q01–Q31 were sent through the APIs, as two sessions per platform (Q01–Q10, then Q11–Q31) (Snowflake `DATA_AGENT_RUN`, Agent Bricks `/api/invocations`); latency is measured end to end per call.
+Snowflake Cortex Agent (`SC_RISK_AGENT`) vs Databricks Agent Bricks, **both on Claude Opus 5.5**. Same data, documents and 31 questions; auto-generated semantic layers (Semantic View Autopilot, Genie-generated metric view); no agent instructions; same two tools on each side (structured data + contract search).
 
-Scoring: **Correct** Y/P/N · **Grounded** 1–5 · **Relevant** 1–5 · Latency in seconds. Tool calls and latency come from the traces.
+- **Snowflake:** orchestration model `auto`, which resolved to `claude-opus-5-5` (pin `claude-opus-5-5` to reproduce).
+- **Databricks:** Agent Bricks template with `MODEL = "system.ai.claude-opus-5-5"` and `set_default_openai_api("responses")` (required for Opus 5.5; see README Step 3.4).
+- **Run:** through the APIs (Snowflake `DATA_AGENT_RUN`, Agent Bricks `/api/invocations`), two sessions per platform (Q01–Q10, then Q11–Q31). Latency is end to end per call.
 
-\* Avg grounded excludes runs with no answer.
+Scoring: **Correct** Y/P/N against `questions.md` (±0.5% for money) · **Grounded** 1–5 · **Relevant** 1–5 · tool calls and latency (seconds) from the traces.
 
 ## Summary
 | System | Answered | Correct (Y) | Partial (P) | Wrong (N) | Accuracy | Avg grounded | Avg relevant | Median latency | Median tool calls |
 |---|---|---|---|---|---|---|---|---|---|
-| Snowflake Cortex Agent | 31 | 22 | 8 | 1 | 71% (Y) / 84% (Y + ½P) | 4.7 | 4.7 | 22.8 | 2 |
-| Databricks Agent Bricks | 31 | 12 | 0 | 19 | 39% | 2.6 | 3.6 | 48.4 | 1 |
+| Snowflake Cortex Agent | 31 | 22 | 8 | **1** | 71% (Y) / 84% (Y + ½P) | 4.7 | 4.7 | **22.8** | 2 |
+| Databricks Agent Bricks | 31 | **24** | 2 | 5 | **77% (Y)** / 81% (Y + ½P) | 4.6 | 4.7 | 80.9 | 2 |
+
+| Tier | Snowflake Y/P/N | Databricks Y/P/N |
+|---|---|---|
+| 1. Simple lookups (Q01–Q06) | **6/0/0** | 5/0/1 |
+| 2. Ambiguous metrics (Q07–Q12) | **2/3/1** | 1/1/4 |
+| 3. Look-alike names (Q13–Q18) | 3/3/0 | **6/0/0** |
+| 4. Analytical / no-signal (Q19–Q24) | 6/0/0 | 6/0/0 |
+| 5. Data + contracts (Q25–Q31) | 6/1/0 | 6/1/0 |
+
+**Key findings**
+- Accuracy is close on the same model. Snowflake has fewer wrong answers (1 vs 5) and is about 3.5× faster.
+- Snowflake's partials: it led with the `IS_LATE` flag or supplier region, then gave the correct figure as the alternative.
+- Databricks' failures come from trusting Genie's metric-view measures (no grace period, lag clamped at 0). Its wins come from Opus 5.5 rejecting Genie's wrong results (the `'PO'` filter returning 0, exposure counted as all spend) and re-querying, at the cost of more tool calls and latency.
 
 ## Per-question log
 | Q | System | Answer (short) | Expected | Correct | Grounded | Relevant | Tool calls | Latency | Failure | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Q01 | Snowflake | 2,636 by delivery date; 2,645 by order date | 2,645 or 2,636 | Y | 5 | 5 | 2 | 18.8 | – | Both definitions, explained |
-| Q01 | Databricks Agent Bricks | 0 delivered in 2025 | 2,645 or 2,636 | N | 1 | 2 | 1 | 36.7 | wrong_metric | Genie metric view filter bug (`record_type = 'PO'`, actual value 'PURCHASE_ORDER') |
+| Q01 | Databricks Agent Bricks | 2,636 by delivery date; 2,645 by order date | 2,645 or 2,636 | Y | 5 | 5 | 3 | 161.3 | – | Rejected Genie's 0 (metric view filter `record_type = 'PO'`), re-queried |
 | Q02 | Snowflake | 234 open | 234 | Y | 5 | 5 | 1 | 13.6 | – | |
-| Q02 | Databricks Agent Bricks | 0 open | 234 | N | 1 | 2 | 1 | 47.5 | wrong_metric | Same filter bug |
+| Q02 | Databricks Agent Bricks | 234 open, with status breakdown | 234 | Y | 5 | 5 | 1 | 50.4 | – |  |
 | Q03 | Snowflake | 1.36 days (219 POs); also 23.5-day lead time | 1.36 | Y | 5 | 5 | 2 | 22.1 | – | Signed lag; offered the lead-time reading |
-| Q03 | Databricks Agent Bricks | 2.3 days (early counted as 0) | 1.36 | N | 2 | 3 | 1 | 47.7 | wrong_metric | Lag clamped at 0; method stated |
+| Q03 | Databricks Agent Bricks | Leads 23.5-day lead time; 2.3 days late (early = 0) | 1.36 | N | 3 | 3 | 1 | 52.8 | wrong_metric | Never gave the signed average (1.36); noted it would be lower |
 | Q04 | Snowflake | PLT-01 Austin Assembly ~$2.10M (25 events, 315.5 h); ranking | PLT-01 | Y | 5 | 5 | 1 | 17.2 | – | |
-| Q04 | Databricks Agent Bricks | PLT-01 Austin Assembly $2.10M | PLT-01 | Y | 4 | 4 | 1 | 50.4 | – | No breakdown or method |
+| Q04 | Databricks Agent Bricks | PLT-01 Austin Assembly ~$2.10M (25 events) | PLT-01 | Y | 5 | 5 | 1 | 80.9 | – |  |
 | Q05 | Snowflake | 5 calendar days (MSA-SUP-103) | 5 days, s.5.1 | Y | 5 | 5 | 2 | 23.5 | – | Contract search; clause quoted |
-| Q05 | Databricks Agent Bricks | 5 calendar days (MSA-SUP-103 s.5.1) | 5 days, s.5.1 | Y | 5 | 5 | 1 | 37.3 | – | Section cited and quoted |
+| Q05 | Databricks Agent Bricks | 5 calendar days (MSA-SUP-103 s.5.1) | 5 days, s.5.1 | Y | 5 | 5 | 2 | 50.7 | – | Section cited |
 | Q06 | Snowflake | USD 120,000 per contract year; 2.5% rate | $120,000, s.8.1 | Y | 5 | 5 | 2 | 23.7 | – | Explained how the cap applies |
-| Q06 | Databricks Agent Bricks | USD 120,000 per contract year (s.8.1) | $120,000, s.8.1 | Y | 5 | 5 | 1 | 18.1 | – | Section cited and quoted |
+| Q06 | Databricks Agent Bricks | USD 120,000 per contract year (s.8.1) | $120,000, s.8.1 | Y | 5 | 5 | 2 | 31.2 | – | Section cited |
 | Q07 | Snowflake | Leads with 564 (flag); also 504 (grace rule) and recommends 504 for damages | 504 or 513 | P | 4 | 4 | 1 | 25.6 | wrong_metric (led with the trap) | Gave and recommended the right figure, but the headline is the flag. Minor: "60 flagged but within grace" oversimplifies (the flag is wrong both ways) |
-| Q07 | Databricks Agent Bricks | 0 late; "all within grace periods" | 504 or 513 | N | 1 | 2 | 1 | 55.4 | wrong_metric + hallucinated_detail | Filter bug, then invented an explanation |
+| Q07 | Databricks Agent Bricks | 1,394 (any lag); threshold table >3d 592 / >5d 451; 'likely 450–600' | 504 or 513 | N | 3 | 4 | 2 | 100.3 | wrong_metric | Raised the grace period but didn't apply each supplier's contract (504) |
 | Q08 | Snowflake | $12.45M total; unplanned $8.50M / planned $3.94M; only unplanned counts per contract | $8,503,350 (or total + unplanned with explanation) | Y | 5 | 5 | 1 | 17.6 | – | Meets the rubric's alternative: total + unplanned + reason |
-| Q08 | Databricks Agent Bricks | $12.45M total | $8,503,350 | N | 2 | 3 | 1 | 49.4 | wrong_metric (planned + unplanned) | No breakdown; suggested the unplanned split as a follow-up |
+| Q08 | Databricks Agent Bricks | $12.45M total; unplanned $8.50M; only unplanned recoverable | $8,503,350 (or total + unplanned with explanation) | Y | 5 | 5 | 1 | 88.3 | – | Meets the rubric's alternative |
 | Q09 | Snowflake | Headline APAC suppliers $18.86M (2025); APAC plants $7.27M (2025) + $0.11M (2026) = $7.38M | $7,381,727 (plant region) | P | 5 | 4 | 2 | 32.3 | wrong_attribution (led with supplier region) | Correct plant-region figure given; grace rule + unplanned only; all figures verified |
-| Q09 | Databricks Agent Bricks | $0 ("no unplanned downtime in APAC") | $7,381,727 | N | 1 | 2 | 1 | 49.6 | wrong_metric + hallucinated_detail | APAC plants have $1.64M unplanned downtime; ignored late deliveries |
+| Q09 | Databricks Agent Bricks | APAC suppliers $18.86M (grace rule + unplanned); plant region mentioned without a figure | $7,381,727 (plant region) | N | 4 | 4 | 7 | 158.9 | wrong_attribution (supplier region) | Correct for supplier region (trap value, 2025) |
 | Q10 | Snowflake | Headline APAC suppliers 289 (flag) / 278 (grace); by plant EMEA 236 vs AMER 235 | EMEA (plant region) | P | 4 | 4 | 2 | 28.7 | wrong_attribution (led with supplier region) | Gave the plant-region answer (EMEA), but by flag; grace rule gives EMEA 214 vs AMER 202 |
-| Q10 | Databricks Agent Bricks | APAC 601 (supplier region) | EMEA | N | 2 | 3 | 1 | 48.6 | wrong_metric + wrong_attribution | 601 = lag > 0 (grace ignored); offered plant region |
+| Q10 | Databricks Agent Bricks | Leads APAC suppliers (273 contract-late); by plant EMEA 208 | EMEA (plant region) | P | 4 | 4 | 3 | 111.7 | wrong_attribution (led with supplier region) | Gave the plant-region answer (EMEA) with the grace rule |
 | Q11 | Snowflake | Leads 74.5% (flag); table gives 75.6% (3-day grace) | 75.64% | P | 5 | 4 | 2 | 29.5 | wrong_metric (led with the flag) | Grace-rule figure given but not chosen; flagged the 3-order mismatch |
-| Q11 | Databricks Agent Bricks | 47.6% | 75.64% | N | 2 | 3 | 1 | 52.6 | wrong_metric | lag ≤ 0 (grace ignored); concluded 'significant performance issues' |
+| Q11 | Databricks Agent Bricks | 47.6% (Genie `on_time_delivery_rate`) | 75.64% | N | 3 | 3 | 2 | 59.8 | wrong_metric | Trusted Genie's measure (no grace period) |
 | Q12 | Snowflake | $3,009,346 (50 orders, flag) | $2,541,813.52 | N | 3 | 4 | 2 | 16.0 | wrong_metric (IS_LATE) | No grace rule and no caveat; consistent with its Q11 choice |
-| Q12 | Databricks Agent Bricks | $7,239,643 | $2,541,813.52 | N | 2 | 3 | 1 | 47.3 | wrong_metric | Value of lag > 0 deliveries |
+| Q12 | Databricks Agent Bricks | $7,239,643 (no grace; caveated) | $2,541,813.52 | N | 3 | 3 | 2 | 61.0 | wrong_metric | Flagged the missing grace period but didn't correct it |
 | Q13 | Snowflake | Both: SUP-101 $11.56M, SUP-110 $4.39M; LD + caps | SUP-101 $11,555,037; SUP-110 $4,386,445 | Y | 5 | 5 | 3 | 35.7 | – | Contract definition and amendment applied |
-| Q13 | Databricks Agent Bricks | Both Acmes, but PO spend $29.39M / $13.48M + downtime | SUP-101 $11.56M; SUP-110 $4.39M | N | 2 | 3 | 1 | 48.4 | wrong_metric | Found both entities; exposure = all spend |
+| Q13 | Databricks Agent Bricks | Both: SUP-101 $11.34M, SUP-110 $4.39M (2025); rejected Genie's spend figure | SUP-101 $11,555,037; SUP-110 $4,386,445 | Y | 5 | 5 | 5 | 142.9 | – | 2026 shown separately |
 | Q14 | Snowflake | Leads 48 (flag); contract rule 42, recommends 42 | 42 | P | 5 | 4 | 2 | 20.3 | wrong_metric (led with the flag) | Entity correct; separated it from SUP-101 |
-| Q14 | Databricks Agent Bricks | 114 | 42 | N | 2 | 3 | 1 | 47.8 | wrong_metric | lag > 0 |
+| Q14 | Databricks Agent Bricks | 42 (contract rule) | 42 | Y | 4 | 5 | 0 | 16.7 | – | Answered from the previous turn's data |
 | Q15 | Snowflake | NORTHWINDS $3,668,150; LD capped at $110k; also NORTHWIND | $3,668,150.38 | Y | 5 | 5 | 5 | 35.8 | – | Exact |
-| Q15 | Databricks Agent Bricks | $11.82M spend + $657K downtime | $3,668,150.38 | N | 2 | 3 | 1 | 50.2 | wrong_metric | Breach count 43 correct, but exposure = spend |
+| Q15 | Databricks Agent Bricks | NORTHWINDS $3,668,150.38 | $3,668,150.38 | Y | 5 | 5 | 3 | 98.4 | – | Exact |
 | Q16 | Snowflake | Leads 47 (flag); contract 40; also gave NORTHWINDS | 40 | P | 4 | 4 | 1 | 17.5 | wrong_metric (led with the flag) | Typo resolved to SUP-102 |
-| Q16 | Databricks Agent Bricks | 90 | 40 | N | 2 | 3 | 1 | 47.6 | wrong_metric | lag > 0; noted the look-alike name |
+| Q16 | Databricks Agent Bricks | NORTHWIND 40 (38 + 2); also NORTHWINDS 43 | 40 | Y | 5 | 5 | 3 | 70.1 | – | Typo resolved |
 | Q17 | Snowflake | Leads 47,832 (flag); contract 48,104 | 48,104 units | P | 4 | 4 | 3 | 21.9 | wrong_metric (led with the flag) | Recommends the contract figure |
-| Q17 | Databricks Agent Bricks | 78,521 units | 48,104 units | N | 2 | 3 | 1 | 47.2 | wrong_metric | lag > 0 |
+| Q17 | Databricks Agent Bricks | 48,104 units (179 POs) | 48,104 units | Y | 5 | 5 | 2 | 61.5 | – |  |
 | Q18 | Snowflake | 2.0%, $90k cap, no amendment | 2.0% | Y | 5 | 5 | 1 | 17.8 | – |  |
-| Q18 | Databricks Agent Bricks | 2.0% (MSA-SUP-110), $90k cap | 2.0% | Y | 4 | 5 | 1 | 37.8 | – | Mislabelled the force majeure notice as a 'grace period' |
+| Q18 | Databricks Agent Bricks | 2.0%, $90k cap | 2.0% | Y | 5 | 5 | 1 | 24.0 | – |  |
 | Q19 | Snowflake | Flat 500; flags likely placeholder | Flat | Y | 5 | 5 | 1 | 16.8 | – |  |
-| Q19 | Databricks Agent Bricks | Flat 500; 'well-managed' | Flat | Y | 4 | 4 | 1 | 49.2 | – | No data-quality caveat |
+| Q19 | Databricks Agent Bricks | Flat 500; flags likely data problem | Flat | Y | 5 | 5 | 3 | 104.7 | – |  |
 | Q20 | Snowflake | Flat 500; same default as C-12 | Flat | Y | 5 | 5 | 1 | 15.4 | – |  |
-| Q20 | Databricks Agent Bricks | Flat 500 | Flat | Y | 4 | 4 | 1 | 47.2 | – |  |
+| Q20 | Databricks Agent Bricks | Flat 500 | Flat | Y | 5 | 5 | 3 | 105.3 | – |  |
 | Q21 | Snowflake | 164 | 164 | Y | 5 | 5 | 1 | 15.3 | – |  |
-| Q21 | Databricks Agent Bricks | 164 | 164 | Y | 5 | 5 | 1 | 33.1 | – |  |
+| Q21 | Databricks Agent Bricks | 164 | 164 | Y | 5 | 5 | 2 | 65.1 | – |  |
 | Q22 | Snowflake | C-29 (164); next C-05 107 | C-29 | Y | 5 | 5 | 5 | 29.8 | – |  |
-| Q22 | Databricks Agent Bricks | Fasteners Part 29 (C-29), 164 | C-29 | Y | 5 | 5 | 1 | 53.0 | – |  |
+| Q22 | Databricks Agent Bricks | C-29 (164) | C-29 | Y | 5 | 5 | 2 | 67.4 | – |  |
 | Q23 | Snowflake | SUP-101 (52 flag / 50 grace) | SUP-101 | Y | 5 | 5 | 1 | 18.2 | – |  |
-| Q23 | Databricks Agent Bricks | SUP-101 (82, lag > 0) | SUP-101 | Y | 3 | 5 | 1 | 49.2 | – | Right supplier, wrong count definition |
+| Q23 | Databricks Agent Bricks | SUP-101 (50, contract rule) | SUP-101 | Y | 5 | 5 | 3 | 108.7 | – |  |
 | Q24 | Snowflake | SUP-101 $11.56M, SUP-104 $4.46M, SUP-110 $4.39M | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 2 | 31.2 | – |  |
-| Q24 | Databricks Agent Bricks | SUP-110, SUP-105, 'NORTHWIND (SUP-108)' by downtime only | SUP-101, SUP-104, SUP-110 | N | 1 | 3 | 1 | 52.2 | wrong_metric + wrong_entity | Downtime only; SUP-108 is SOYLENT |
+| Q24 | Databricks Agent Bricks | SUP-101, SUP-104, SUP-110 (force majeure applied) | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 5 | 129.3 | – |  |
 | Q25 | Snowflake | $400,000 (amendment 8%, cap) | $400,000 | Y | 5 | 5 | 3 | 30.9 | – |  |
-| Q25 | Databricks Agent Bricks | $400,000 (amendment, cap) on $29.89M 'exposure' | $400,000 | Y | 3 | 5 | 2 | 54.2 | – | Right answer because the cap binds; exposure = spend |
+| Q25 | Databricks Agent Bricks | $400,000 (amendment 8%, cap) | $400,000 | Y | 4 | 5 | 0 | 28.2 | – | From earlier-turn exposure; § cited |
 | Q26 | Snowflake | ~$176,300 (4% of 2025 delivered-year $4.41M) | $178,320.42 | P | 5 | 4 | 2 | 29.3 | definition (contract year) | Excluded a 2026 delivery (−1.1%, outside tolerance); amendment applied correctly |
-| Q26 | Databricks Agent Bricks | $180,000 (cap) | $178,320.42 | N | 2 | 4 | 3 | 90.9 | wrong_metric | Spend-based exposure inflates it past the cap |
+| Q26 | Databricks Agent Bricks | ~$176,300 (2025 deliveries only) | $178,320.42 | P | 5 | 4 | 2 | 101.9 | definition (contract year) | Same choice as Snowflake (−1.1%) |
 | Q27 | Snowflake | $107,710.89 (force majeure applied) | $107,710.89 | Y | 5 | 5 | 3 | 31.6 | – | Exact; caught force majeure T9 |
-| Q27 | Databricks Agent Bricks | $500,000 (cap); force majeure partly applied | $107,710.89 | N | 2 | 4 | 3 | 124.1 | wrong_metric | Spend-based exposure |
+| Q27 | Databricks Agent Bricks | ~$107,711 (force majeure applied) | $107,710.89 | Y | 5 | 5 | 2 | 103.3 | – |  |
 | Q28 | Snowflake | $110,000 (cap, $45 over) | $110,000 | Y | 5 | 5 | 4 | 32.5 | – |  |
-| Q28 | Databricks Agent Bricks | $110,000 (cap) | $110,000 | Y | 3 | 5 | 3 | 95.2 | – | Right answer because the cap binds; exposure = spend |
+| Q28 | Databricks Agent Bricks | $110,000 (cap) | $110,000 | Y | 5 | 5 | 1 | 105.1 | – |  |
 | Q29 | Snowflake | SUP-101, SUP-111; full 12-supplier table | SUP-101, SUP-111 | Y | 5 | 5 | 5 | 48.9 | – |  |
-| Q29 | Databricks Agent Bricks | 4 suppliers analysed so far, all capped | SUP-101, SUP-111 | N | 2 | 3 | 0 | 22.6 | wrong_metric + incomplete | No tool call; answered from memory |
+| Q29 | Databricks Agent Bricks | SUP-101, SUP-111 | SUP-101, SUP-111 | Y | 5 | 5 | 3 | 51.2 | – |  |
 | Q30 | Snowflake | ~$1.30M (~$1,299K) | $1,304,732.41 | Y | 4 | 5 | 0 | 16.3 | – | Within 0.5%; summed from rounded figures |
-| Q30 | Databricks Agent Bricks | $2,355,000 (all capped) | $1,304,732.41 | N | 2 | 4 | 9 | 153.2 | wrong_metric | Spend-based exposure caps every supplier |
+| Q30 | Databricks Agent Bricks | $1,299,233.62 | $1,304,732.41 | Y | 4 | 5 | 0 | 31.9 | – | Within 0.5% |
 | Q31 | Snowflake | SUP-101, breach terms, $400,000 | $400,000 | Y | 5 | 5 | 1 | 22.8 | – | Plus termination check |
-| Q31 | Databricks Agent Bricks | SUP-101, breach terms, $400,000 | $400,000 | Y | 3 | 4 | 0 | 25.0 | – | Exposure = spend; answered from memory |
+| Q31 | Databricks Agent Bricks | SUP-101 $11.34M; terms with § refs; $400,000; termination right (<70% every quarter) | $400,000 | Y | 5 | 5 | 1 | 104.8 | – | Went beyond the question |
 
 ## Ownership
 
@@ -94,8 +109,8 @@ Scale: 1 = heavy burden, 5 = light. Scores are drafts based on the facts recorde
 |---|---|---|---|---|
 | O1 | Semantic view (Autopilot) + agent spec, both in Snowflake | 4 | Genie metric view + Genie Agent space + `agent.py` / `agent.toml`; a rule fix touches the metric view or code | 2 |
 | O2 | 3 SQL scripts, Autopilot UI, agent UI (one platform, ~3 surfaces) | 4 | Setup notebook, metric view prompt, Genie UI, Vector Search, CLI install (uv, Databricks CLI), Agent Bricks project, deploy + app grants (~7 surfaces) | 2 |
-| O3 | Chunk headers; switching off `auto` for a like-for-like test (2) | 4 | Chunk headers; CLI install fixes; template demo tools; `record_type = 'PO'` metric view filter bug (unresolved); Opus 5.5 breaks the template (5) | 1 |
-| O4 | Change the model in the spec, then commit a version and set it as default; earlier versions kept for rollback; every model tried worked | 5 | Edit `agent.py` and redeploy (~1 min); Opus 5.5 failed ~50% of calls (reasoning blocks); no versioning | 3 |
+| O3 | Chunk headers (1) | 4 | Chunk headers; CLI install fixes; template demo tools; `record_type = 'PO'` metric view filter bug (unresolved); Opus 5.5 needs a switch to the Responses API (5) | 1 |
+| O4 | Change the model in the spec, then commit a version and set it as default; earlier versions kept for rollback; every model tried worked | 5 | Edit `agent.py` and redeploy (~1 min); Opus 5.5 fails with the template's `chat_completions` API until switched to `responses` (found by debugging); no versioning | 3 |
 | O5 | `GET_AI_OBSERVABILITY_EVENTS`: SQL, tools and timing per answer, no setup | 5 | MLflow traces set up automatically by the CLI; Genie's internal LLM tokens not exposed | 4 |
 | **Average** | | **4.4** | | **2.4** |
 
@@ -115,7 +130,7 @@ Scale: 1 = hard / slow / heavy, 5 = easy / fast / light. Counts are taken from t
 | Generated code to own | None | Full Agent Bricks project (`agent/`, `runtime/`, `tests/`, demo tools), versioned outside the platform |
 | Manual grants | 1 GRANT line (governance) | Deploy grants the tools it declares; USE CATALOG, USE SCHEMA, SELECT and index SELECT for the app SP are by hand |
 | Wait points | Autopilot suggestions (a few minutes) | Vector index sync, first deploy (a few minutes), redeploy (~50 s) per change |
-| Manual fixes during evaluation | Chunk headers | Chunk headers; CLI install and host URL fix; demo tool clean-up; Opus 5.5 incompatibility; metric view `record_type` filter bug (unresolved) |
+| Manual fixes during evaluation | Chunk headers | Chunk headers; CLI install and host URL fix; demo tool clean-up; Opus 5.5 Responses API switch; metric view `record_type` filter bug (unresolved) |
 | How a change is made | Edit the spec, then commit a version and set it as default (SQL or UI) | Edit code, then redeploy |
 
 | Criterion | Snowflake | Score | Databricks | Score |

@@ -17,7 +17,7 @@ data/output/                      <- shared dataset (CSVs, contract PDFs, expect
 setup/snowflake/01..03_*.sql       <- Snowflake setup scripts (+ Autopilot and agent UI steps)
 setup/databricks/databricks_setup.ipynb  <- Databricks setup (one notebook)
 eval/questions.md                  <- 32 questions with expected answers
-eval/scorecard.md                  <- scores from the reference run
+eval/scorecard.md                  <- scores from the reference run (both on Claude Opus 5.5)
 eval/usage_queries.sql             <- tool calls and latency from the traces (both platforms)
 eval/ground_truth.sql              <- optional: proves data parity across platforms
 ```
@@ -29,7 +29,7 @@ eval/ground_truth.sql              <- optional: proves data parity across platfo
 | **Arm B: code-first** | Agent Bricks CLI agent (DurableAgentServer on Agent Runtime) with Genie and contract-search tools | The same Cortex Agent (one object serves CoWork and REST) |
 
 **Fairness rules:**
-- **Default models (out of the box):** Snowflake `auto` (currently resolves to claude-opus-5-5); Agent Bricks template default `system.ai.claude-sonnet-4-5`. The Genie Agent doesn't let you choose a model, and that's recorded as a finding.
+- **Same model on both:** Claude Opus 5.5. Snowflake `claude-opus-5-5` (the reference run used `auto`, which resolved to it); Agent Bricks `system.ai.claude-opus-5-5`. The Genie Agent's internal model can't be chosen, and that's recorded as a finding.
 - **No hand-built semantic layer:** Snowflake uses **Semantic View Autopilot**; Databricks uses a **Genie prompt** to build the metric view.
 - **No business rules given:** each platform gets only the same one-line description, "Supply chain performance for Contoso Manufacturing in 2025: suppliers, plants, components, purchase orders, daily inventory and downtime events.". There are no business definitions, instructions, SQL examples or synonyms, so the traps test what each platform works out by itself.
 - **Fixes are recorded:** if a generated artifact needs a manual fix, write it down, with the minutes spent. That counts towards the ownership comparison.
@@ -89,7 +89,7 @@ Run as ACCOUNTADMIN, in a Snowsight worksheet or with `snow sql -f <file>`.
 1. Snowsight → **AI & ML** → **Agents** → **Create agent**.
    - Location: `SUPPLY_CHAIN_EVAL.ANALYTICS`.
    - Object name: `SC_RISK_AGENT`. Display name: *Supply Chain Risk Analyst*.
-2. **Orchestration model:** leave as `auto` (the default). If it isn't listed, run `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';`.
+2. **Orchestration model:** `claude-opus-5-5` (the reference run used `auto`, which resolved to it). If it isn't listed, run `ALTER ACCOUNT SET CORTEX_ENABLED_CROSS_REGION = 'ANY_REGION';`.
 3. **Instructions:** leave both **Orchestration instructions** and **Response instructions** empty. The Genie Agent and the Agent Bricks agent get no instructions either.
 4. **Tools → Cortex Analyst:**
    - Semantic view: `SUPPLY_CHAIN_EVAL.ANALYTICS.SV_SUPPLY_CHAIN`. Warehouse: `SC_EVAL_WH`.
@@ -149,7 +149,12 @@ agentbricks tools list                                # both tools should be lis
 - **Contracts tool:** a UC function, so it runs as the app's service principal (`--auth app`).
 
 **3.4 Set the model**
-- In `agent/agent.py`, keep the template's default model (`system.ai.claude-sonnet-4-5`).
+- In `agent/agent.py`, make two changes:
+  ```python
+  MODEL = resolve_model_service() or "system.ai.claude-opus-5-5"   # was claude-sonnet-4-5
+  set_default_openai_api("responses")                              # in configure(); was "chat_completions"
+  ```
+- **Why the Responses API:** with tool calling, Opus 5.5 returns reasoning blocks that the template's `chat_completions` path can't parse (`ValidationError: ResponseTextDeltaEvent.delta – Input should be a valid string`). Thinking can't be turned off for Opus 5.5. The Responses API handles reasoning output and also works for Opus 4.8 and Sonnet 4.5.
 - Keep the template's default instructions, for parity with the other agents.
 - To see the models available to you: `agentbricks experimental models list`.
 
