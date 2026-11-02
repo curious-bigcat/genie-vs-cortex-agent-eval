@@ -6,11 +6,11 @@ Snowflake Cortex Agent (`SC_RISK_AGENT`) vs Databricks Agent Bricks, **both on C
 
 - **Snowflake:** orchestration model `auto`, which resolved to `claude-opus-5-5` (pin `claude-opus-5-5` to reproduce).
 - **Databricks:** Agent Bricks template with `MODEL = "system.ai.claude-opus-5-5"` and `set_default_openai_api("responses")` (required for Opus 5.5; see README Step 3.4).
-- **Run:** through the APIs (Snowflake `DATA_AGENT_RUN`, Agent Bricks `/api/invocations`), two sessions per platform (Q01–Q10, then Q11–Q31). Latency is end to end per call.
+- **Run:** through the APIs (Snowflake `DATA_AGENT_RUN`, Agent Bricks `/api/invocations`), run 1 in two sessions per platform (Q01–Q10, then Q11–Q31); runs 2 and 3 in one session per platform, sent in parallel. Latency is end to end per call.
 
 Scoring: **Correct** Y/P/N against `questions.md` (±0.5% for money) · **Grounded** 1–5 · **Relevant** 1–5 · tool calls and latency (seconds) from the traces.
 
-## Summary
+## Summary (run 1)
 | System | Answered | Correct (Y) | Partial (P) | Wrong (N) | Accuracy | Avg grounded | Avg relevant | Median latency | Median tool calls |
 |---|---|---|---|---|---|---|---|---|---|
 | Snowflake Cortex Agent | 31 | 22 | 8 | **1** | 71% (Y) / 84% (Y + ½P) | 4.7 | 4.7 | **22.8** | 2 |
@@ -25,11 +25,54 @@ Scoring: **Correct** Y/P/N against `questions.md` (±0.5% for money) · **Ground
 | 5. Data + contracts (Q25–Q31) | 6/1/0 | 6/1/0 |
 
 **Key findings**
-- Accuracy is close on the same model. Snowflake has fewer wrong answers (1 vs 5) and is about 3.5× faster.
+- Run 1: accuracy is close. Snowflake has fewer wrong answers (1 vs 5) and is about 3.5× faster. Over three runs (see [Repeat runs](#repeat-runs)) Snowflake leads on both: 81% vs 76% fully correct, 2 vs 10 wrong.
 - Snowflake's partials: it led with the `IS_LATE` flag or supplier region, then gave the correct figure as the alternative.
 - Databricks' failures come from trusting Genie's metric-view measures (no grace period, lag clamped at 0). Its wins come from Opus 5.5 rejecting Genie's wrong results (the `'PO'` filter returning 0, exposure counted as all spend) and re-querying, at the cost of more tool calls and latency.
 
-## Per-question log
+## Repeat runs
+
+Runs 2 and 3 repeat the evaluation with the same configuration. Each question was sent to both agents **at the same moment**, in **one chat session per agent per run**, so both faced the same conditions. Scoring rules are unchanged.
+
+| Run | Snowflake Y/P/N | Databricks Y/P/N | Snowflake median latency | Databricks median latency | Median tool calls (SF / DBX) |
+|---|---|---|---|---|---|
+| 1 | 22/8/1 | **24**/2/5 | **22.8 s** | 80.9 s | 2 / 2 |
+| 2 | **24**/6/**1** | 23/5/3 | **27.2 s** | 70.5 s | 1 / 2 |
+| 3 | **29**/2/**0** | 24/5/2 | **31.2 s** | 65.2 s | 1 / 2 |
+| **All (93 answers)** | **75/16/2** | 71/12/10 | | | |
+| **Accuracy** | **81% (Y) / 89% (Y + ½P)** | 76% (Y) / 83% (Y + ½P) | | | |
+
+| Tier (3 runs) | Snowflake Y/P/N | Databricks Y/P/N |
+|---|---|---|
+| 1. Simple lookups | **18/0/0** | 16/0/2 |
+| 2. Ambiguous metrics | 7/9/**2** | 6/4/8 |
+| 3. Look-alike names | **14**/4/0 | 12/6/0 |
+| 4. Analytical / no-signal | 18/0/0 | 18/0/0 |
+| 5. Data + contracts | 18/3/0 | **19**/2/0 |
+
+**Questions that weren't Y in every run** (run 1, 2, 3). All other questions were Y in all three runs on both platforms.
+
+| Q | Snowflake | Databricks |
+|---|---|---|
+| Q03 | Y Y Y | N N Y |
+| Q07 | P P Y | N N Y |
+| Q09 | P N Y | N N N |
+| Q10 | P P P | P P N |
+| Q11 | P P Y | N P P |
+| Q12 | N P Y | N Y Y |
+| Q13 | Y Y Y | Y Y P |
+| Q14 | P Y Y | Y P Y |
+| Q16 | P P Y | Y P P |
+| Q17 | P Y Y | Y P P |
+| Q26 | P P P | P Y P |
+
+**What the repeat runs show**
+- Run 1's lead for Databricks on fully correct answers (24 vs 22) didn't hold. Over three runs Snowflake has more Y answers (75 vs 71) and far fewer wrong ones (2 vs 10).
+- Snowflake improved run over run, mostly by leading with the grace-period definition instead of the `IS_LATE` flag (Q07, Q11, Q16, Q17). Its two wrong answers were in run 1 (Q12) and run 2 (Q09); run 3 had none.
+- Databricks' wrong answers repeat on the same questions: Q09 in all three runs, Q03 and Q07 in two, all tied to Genie's measures or supplier-region defaults.
+- Q26 is partial on both platforms in most runs: the agents filter to deliveries dated 2025 (66 orders, ≈ $176,300) instead of all delivered orders (67, $178,320.42), which is outside the ±0.5% tolerance.
+- Tool calls for runs 2 and 3 are counted from the agents' streamed tool-use events, not the traces.
+
+## Per-question log (run 1)
 | Q | System | Answer (short) | Expected | Correct | Grounded | Relevant | Tool calls | Latency | Failure | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
 | Q01 | Snowflake | 2,636 by delivery date; 2,645 by order date | 2,645 or 2,636 | Y | 5 | 5 | 2 | 18.8 | – | Both definitions, explained |
