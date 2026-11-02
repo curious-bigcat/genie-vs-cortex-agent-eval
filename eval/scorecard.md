@@ -6,137 +6,98 @@ Snowflake Cortex Agent (`SC_RISK_AGENT`) vs Databricks Agent Bricks, **both on C
 
 - **Snowflake:** orchestration model `auto`, which resolved to `claude-opus-5-5` (pin `claude-opus-5-5` to reproduce).
 - **Databricks:** Agent Bricks template with `MODEL = "system.ai.claude-opus-5-5"` and `set_default_openai_api("responses")` (required for Opus 5.5; see README Step 3.4).
-- **Run:** through the APIs (Snowflake `DATA_AGENT_RUN`, Agent Bricks `/api/invocations`), run 1 in two sessions per platform (Q01–Q10, then Q11–Q31); runs 2 and 3 in one session per platform, sent in parallel. Latency is end to end per call.
+- **Run:** through the APIs (Snowflake Cortex Agent REST `:run`, Agent Bricks `/api/invocations`). One chat session per agent; each question sent to both agents at the same moment. Latency is end to end per call.
 
-Scoring: **Correct** Y/P/N against `questions.md` (±0.5% for money) · **Grounded** 1–5 · **Relevant** 1–5 · tool calls and latency (seconds) from the traces.
+Scoring: **Correct** Y/P/N against `questions.md` (±0.5% for money) · **Grounded** 1–5 (5 = figures match the data and contracts and sources are cited; 4 = correct figure present but not leading or slightly off; 2 = wrong figure) · **Relevant** 1–5 (5 = answers the question as asked; 4 = right answer but leads with another definition or includes noise; 3 = misses the intended reading) · tool calls from the agents' streamed tool-use events.
 
-## Summary (run 1)
-| System | Answered | Correct (Y) | Partial (P) | Wrong (N) | Accuracy | Avg grounded | Avg relevant | Median latency | Median tool calls |
+## Summary
+
+| System | Answered | Correct (Y) | Partial (P) | Wrong (N) | Accuracy | Avg grounded | Avg relevant | Median latency (s) | Median tool calls |
 |---|---|---|---|---|---|---|---|---|---|
-| Snowflake Cortex Agent | 31 | 22 | 8 | **1** | 71% (Y) / 84% (Y + ½P) | 4.7 | 4.7 | **22.8** | 2 |
-| Databricks Agent Bricks | 31 | **24** | 2 | 5 | **77% (Y)** / 81% (Y + ½P) | 4.6 | 4.7 | 80.9 | 2 |
+| Snowflake Cortex Agent | 31 | **29** | 2 | **0** | **94% (Y) / 97% (Y + ½P)** | **4.9** | **4.9** | **31.2** | 1 |
+| Databricks Agent Bricks | 31 | 24 | 5 | 2 | 77% (Y) / 85% (Y + ½P) | 4.6 | 4.7 | 65.2 | 2 |
 
 | Tier | Snowflake Y/P/N | Databricks Y/P/N |
 |---|---|---|
-| 1. Simple lookups (Q01–Q06) | **6/0/0** | 5/0/1 |
-| 2. Ambiguous metrics (Q07–Q12) | **2/3/1** | 1/1/4 |
-| 3. Look-alike names (Q13–Q18) | 3/3/0 | **6/0/0** |
+| 1. Simple lookups (Q01–Q06) | 6/0/0 | 6/0/0 |
+| 2. Ambiguous metrics (Q07–Q12) | **5/1/0** | 3/1/2 |
+| 3. Look-alike names (Q13–Q18) | **6/0/0** | 3/3/0 |
 | 4. Analytical / no-signal (Q19–Q24) | 6/0/0 | 6/0/0 |
 | 5. Data + contracts (Q25–Q31) | 6/1/0 | 6/1/0 |
 
 **Key findings**
-- Run 1: accuracy is close. Snowflake has fewer wrong answers (1 vs 5) and is about 3.5× faster. Over three runs (see [Repeat runs](#repeat-runs)) Snowflake leads on both: 81% vs 76% fully correct, 2 vs 10 wrong.
-- Snowflake's partials: it led with the `IS_LATE` flag or supplier region, then gave the correct figure as the alternative.
-- Databricks' failures come from trusting Genie's metric-view measures (no grace period, lag clamped at 0). Its wins come from Opus 5.5 rejecting Genie's wrong results (the `'PO'` filter returning 0, exposure counted as all spend) and re-querying, at the cost of more tool calls and latency.
+- Snowflake answered 29 of 31 fully correctly with no wrong answers, about 2× faster (median 31.2 s vs 65.2 s).
+- Databricks' two wrong answers (Q09, Q10) group by supplier region and never offer the plant-region view; Snowflake gave both readings.
+- Databricks' partials mostly come from filtering to 2025 deliveries or leading with "any lateness" instead of the contract grace period.
+- Genie's metric view still returned 0 for purchase-order counts (`record_type = 'PO'`); the agent caught it on Q01 and re-queried the raw data, adding tool calls and latency (up to 8 tool calls on one question, against 5 for Snowflake).
+- Q26 is partial on both: each filtered to deliveries dated 2025 (≈ $176,300 vs $178,320.42 expected).
 
-## Repeat runs
+## Per-question log
 
-Runs 2 and 3 repeat the evaluation with the same configuration. Each question was sent to both agents **at the same moment**, in **one chat session per agent per run**, so both faced the same conditions. Scoring rules are unchanged.
-
-| Run | Snowflake Y/P/N | Databricks Y/P/N | Snowflake median latency | Databricks median latency | Median tool calls (SF / DBX) |
-|---|---|---|---|---|---|
-| 1 | 22/8/1 | **24**/2/5 | **22.8 s** | 80.9 s | 2 / 2 |
-| 2 | **24**/6/**1** | 23/5/3 | **27.2 s** | 70.5 s | 1 / 2 |
-| 3 | **29**/2/**0** | 24/5/2 | **31.2 s** | 65.2 s | 1 / 2 |
-| **All (93 answers)** | **75/16/2** | 71/12/10 | | | |
-| **Accuracy** | **81% (Y) / 89% (Y + ½P)** | 76% (Y) / 83% (Y + ½P) | | | |
-
-| Tier (3 runs) | Snowflake Y/P/N | Databricks Y/P/N |
-|---|---|---|
-| 1. Simple lookups | **18/0/0** | 16/0/2 |
-| 2. Ambiguous metrics | 7/9/**2** | 6/4/8 |
-| 3. Look-alike names | **14**/4/0 | 12/6/0 |
-| 4. Analytical / no-signal | 18/0/0 | 18/0/0 |
-| 5. Data + contracts | 18/3/0 | **19**/2/0 |
-
-**Questions that weren't Y in every run** (run 1, 2, 3). All other questions were Y in all three runs on both platforms.
-
-| Q | Snowflake | Databricks |
-|---|---|---|
-| Q03 | Y Y Y | N N Y |
-| Q07 | P P Y | N N Y |
-| Q09 | P N Y | N N N |
-| Q10 | P P P | P P N |
-| Q11 | P P Y | N P P |
-| Q12 | N P Y | N Y Y |
-| Q13 | Y Y Y | Y Y P |
-| Q14 | P Y Y | Y P Y |
-| Q16 | P P Y | Y P P |
-| Q17 | P Y Y | Y P P |
-| Q26 | P P P | P Y P |
-
-**What the repeat runs show**
-- Run 1's lead for Databricks on fully correct answers (24 vs 22) didn't hold. Over three runs Snowflake has more Y answers (75 vs 71) and far fewer wrong ones (2 vs 10).
-- Snowflake improved run over run, mostly by leading with the grace-period definition instead of the `IS_LATE` flag (Q07, Q11, Q16, Q17). Its two wrong answers were in run 1 (Q12) and run 2 (Q09); run 3 had none.
-- Databricks' wrong answers repeat on the same questions: Q09 in all three runs, Q03 and Q07 in two, all tied to Genie's measures or supplier-region defaults.
-- Q26 is partial on both platforms in most runs: the agents filter to deliveries dated 2025 (66 orders, ≈ $176,300) instead of all delivered orders (67, $178,320.42), which is outside the ±0.5% tolerance.
-- Tool calls for runs 2 and 3 are counted from the agents' streamed tool-use events, not the traces.
-
-## Per-question log (run 1)
-| Q | System | Answer (short) | Expected | Correct | Grounded | Relevant | Tool calls | Latency | Failure | Notes |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Q01 | Snowflake | 2,636 by delivery date; 2,645 by order date | 2,645 or 2,636 | Y | 5 | 5 | 2 | 18.8 | – | Both definitions, explained |
-| Q01 | Databricks Agent Bricks | 2,636 by delivery date; 2,645 by order date | 2,645 or 2,636 | Y | 5 | 5 | 3 | 161.3 | – | Rejected Genie's 0 (metric view filter `record_type = 'PO'`), re-queried |
-| Q02 | Snowflake | 234 open | 234 | Y | 5 | 5 | 1 | 13.6 | – | |
-| Q02 | Databricks Agent Bricks | 234 open, with status breakdown | 234 | Y | 5 | 5 | 1 | 50.4 | – |  |
-| Q03 | Snowflake | 1.36 days (219 POs); also 23.5-day lead time | 1.36 | Y | 5 | 5 | 2 | 22.1 | – | Signed lag; offered the lead-time reading |
-| Q03 | Databricks Agent Bricks | Leads 23.5-day lead time; 2.3 days late (early = 0) | 1.36 | N | 3 | 3 | 1 | 52.8 | wrong_metric | Never gave the signed average (1.36); noted it would be lower |
-| Q04 | Snowflake | PLT-01 Austin Assembly ~$2.10M (25 events, 315.5 h); ranking | PLT-01 | Y | 5 | 5 | 1 | 17.2 | – | |
-| Q04 | Databricks Agent Bricks | PLT-01 Austin Assembly ~$2.10M (25 events) | PLT-01 | Y | 5 | 5 | 1 | 80.9 | – |  |
-| Q05 | Snowflake | 5 calendar days (MSA-SUP-103) | 5 days, s.5.1 | Y | 5 | 5 | 2 | 23.5 | – | Contract search; clause quoted |
-| Q05 | Databricks Agent Bricks | 5 calendar days (MSA-SUP-103 s.5.1) | 5 days, s.5.1 | Y | 5 | 5 | 2 | 50.7 | – | Section cited |
-| Q06 | Snowflake | USD 120,000 per contract year; 2.5% rate | $120,000, s.8.1 | Y | 5 | 5 | 2 | 23.7 | – | Explained how the cap applies |
-| Q06 | Databricks Agent Bricks | USD 120,000 per contract year (s.8.1) | $120,000, s.8.1 | Y | 5 | 5 | 2 | 31.2 | – | Section cited |
-| Q07 | Snowflake | Leads with 564 (flag); also 504 (grace rule) and recommends 504 for damages | 504 or 513 | P | 4 | 4 | 1 | 25.6 | wrong_metric (led with the trap) | Gave and recommended the right figure, but the headline is the flag. Minor: "60 flagged but within grace" oversimplifies (the flag is wrong both ways) |
-| Q07 | Databricks Agent Bricks | 1,394 (any lag); threshold table >3d 592 / >5d 451; 'likely 450–600' | 504 or 513 | N | 3 | 4 | 2 | 100.3 | wrong_metric | Raised the grace period but didn't apply each supplier's contract (504) |
-| Q08 | Snowflake | $12.45M total; unplanned $8.50M / planned $3.94M; only unplanned counts per contract | $8,503,350 (or total + unplanned with explanation) | Y | 5 | 5 | 1 | 17.6 | – | Meets the rubric's alternative: total + unplanned + reason |
-| Q08 | Databricks Agent Bricks | $12.45M total; unplanned $8.50M; only unplanned recoverable | $8,503,350 (or total + unplanned with explanation) | Y | 5 | 5 | 1 | 88.3 | – | Meets the rubric's alternative |
-| Q09 | Snowflake | Headline APAC suppliers $18.86M (2025); APAC plants $7.27M (2025) + $0.11M (2026) = $7.38M | $7,381,727 (plant region) | P | 5 | 4 | 2 | 32.3 | wrong_attribution (led with supplier region) | Correct plant-region figure given; grace rule + unplanned only; all figures verified |
-| Q09 | Databricks Agent Bricks | APAC suppliers $18.86M (grace rule + unplanned); plant region mentioned without a figure | $7,381,727 (plant region) | N | 4 | 4 | 7 | 158.9 | wrong_attribution (supplier region) | Correct for supplier region (trap value, 2025) |
-| Q10 | Snowflake | Headline APAC suppliers 289 (flag) / 278 (grace); by plant EMEA 236 vs AMER 235 | EMEA (plant region) | P | 4 | 4 | 2 | 28.7 | wrong_attribution (led with supplier region) | Gave the plant-region answer (EMEA), but by flag; grace rule gives EMEA 214 vs AMER 202 |
-| Q10 | Databricks Agent Bricks | Leads APAC suppliers (273 contract-late); by plant EMEA 208 | EMEA (plant region) | P | 4 | 4 | 3 | 111.7 | wrong_attribution (led with supplier region) | Gave the plant-region answer (EMEA) with the grace rule |
-| Q11 | Snowflake | Leads 74.5% (flag); table gives 75.6% (3-day grace) | 75.64% | P | 5 | 4 | 2 | 29.5 | wrong_metric (led with the flag) | Grace-rule figure given but not chosen; flagged the 3-order mismatch |
-| Q11 | Databricks Agent Bricks | 47.6% (Genie `on_time_delivery_rate`) | 75.64% | N | 3 | 3 | 2 | 59.8 | wrong_metric | Trusted Genie's measure (no grace period) |
-| Q12 | Snowflake | $3,009,346 (50 orders, flag) | $2,541,813.52 | N | 3 | 4 | 2 | 16.0 | wrong_metric (IS_LATE) | No grace rule and no caveat; consistent with its Q11 choice |
-| Q12 | Databricks Agent Bricks | $7,239,643 (no grace; caveated) | $2,541,813.52 | N | 3 | 3 | 2 | 61.0 | wrong_metric | Flagged the missing grace period but didn't correct it |
-| Q13 | Snowflake | Both: SUP-101 $11.56M, SUP-110 $4.39M; LD + caps | SUP-101 $11,555,037; SUP-110 $4,386,445 | Y | 5 | 5 | 3 | 35.7 | – | Contract definition and amendment applied |
-| Q13 | Databricks Agent Bricks | Both: SUP-101 $11.34M, SUP-110 $4.39M (2025); rejected Genie's spend figure | SUP-101 $11,555,037; SUP-110 $4,386,445 | Y | 5 | 5 | 5 | 142.9 | – | 2026 shown separately |
-| Q14 | Snowflake | Leads 48 (flag); contract rule 42, recommends 42 | 42 | P | 5 | 4 | 2 | 20.3 | wrong_metric (led with the flag) | Entity correct; separated it from SUP-101 |
-| Q14 | Databricks Agent Bricks | 42 (contract rule) | 42 | Y | 4 | 5 | 0 | 16.7 | – | Answered from the previous turn's data |
-| Q15 | Snowflake | NORTHWINDS $3,668,150; LD capped at $110k; also NORTHWIND | $3,668,150.38 | Y | 5 | 5 | 5 | 35.8 | – | Exact |
-| Q15 | Databricks Agent Bricks | NORTHWINDS $3,668,150.38 | $3,668,150.38 | Y | 5 | 5 | 3 | 98.4 | – | Exact |
-| Q16 | Snowflake | Leads 47 (flag); contract 40; also gave NORTHWINDS | 40 | P | 4 | 4 | 1 | 17.5 | wrong_metric (led with the flag) | Typo resolved to SUP-102 |
-| Q16 | Databricks Agent Bricks | NORTHWIND 40 (38 + 2); also NORTHWINDS 43 | 40 | Y | 5 | 5 | 3 | 70.1 | – | Typo resolved |
-| Q17 | Snowflake | Leads 47,832 (flag); contract 48,104 | 48,104 units | P | 4 | 4 | 3 | 21.9 | wrong_metric (led with the flag) | Recommends the contract figure |
-| Q17 | Databricks Agent Bricks | 48,104 units (179 POs) | 48,104 units | Y | 5 | 5 | 2 | 61.5 | – |  |
-| Q18 | Snowflake | 2.0%, $90k cap, no amendment | 2.0% | Y | 5 | 5 | 1 | 17.8 | – |  |
-| Q18 | Databricks Agent Bricks | 2.0%, $90k cap | 2.0% | Y | 5 | 5 | 1 | 24.0 | – |  |
-| Q19 | Snowflake | Flat 500; flags likely placeholder | Flat | Y | 5 | 5 | 1 | 16.8 | – |  |
-| Q19 | Databricks Agent Bricks | Flat 500; flags likely data problem | Flat | Y | 5 | 5 | 3 | 104.7 | – |  |
-| Q20 | Snowflake | Flat 500; same default as C-12 | Flat | Y | 5 | 5 | 1 | 15.4 | – |  |
-| Q20 | Databricks Agent Bricks | Flat 500 | Flat | Y | 5 | 5 | 3 | 105.3 | – |  |
-| Q21 | Snowflake | 164 | 164 | Y | 5 | 5 | 1 | 15.3 | – |  |
-| Q21 | Databricks Agent Bricks | 164 | 164 | Y | 5 | 5 | 2 | 65.1 | – |  |
-| Q22 | Snowflake | C-29 (164); next C-05 107 | C-29 | Y | 5 | 5 | 5 | 29.8 | – |  |
-| Q22 | Databricks Agent Bricks | C-29 (164) | C-29 | Y | 5 | 5 | 2 | 67.4 | – |  |
-| Q23 | Snowflake | SUP-101 (52 flag / 50 grace) | SUP-101 | Y | 5 | 5 | 1 | 18.2 | – |  |
-| Q23 | Databricks Agent Bricks | SUP-101 (50, contract rule) | SUP-101 | Y | 5 | 5 | 3 | 108.7 | – |  |
-| Q24 | Snowflake | SUP-101 $11.56M, SUP-104 $4.46M, SUP-110 $4.39M | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 2 | 31.2 | – |  |
-| Q24 | Databricks Agent Bricks | SUP-101, SUP-104, SUP-110 (force majeure applied) | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 5 | 129.3 | – |  |
-| Q25 | Snowflake | $400,000 (amendment 8%, cap) | $400,000 | Y | 5 | 5 | 3 | 30.9 | – |  |
-| Q25 | Databricks Agent Bricks | $400,000 (amendment 8%, cap) | $400,000 | Y | 4 | 5 | 0 | 28.2 | – | From earlier-turn exposure; § cited |
-| Q26 | Snowflake | ~$176,300 (4% of 2025 delivered-year $4.41M) | $178,320.42 | P | 5 | 4 | 2 | 29.3 | definition (contract year) | Excluded a 2026 delivery (−1.1%, outside tolerance); amendment applied correctly |
-| Q26 | Databricks Agent Bricks | ~$176,300 (2025 deliveries only) | $178,320.42 | P | 5 | 4 | 2 | 101.9 | definition (contract year) | Same choice as Snowflake (−1.1%) |
-| Q27 | Snowflake | $107,710.89 (force majeure applied) | $107,710.89 | Y | 5 | 5 | 3 | 31.6 | – | Exact; caught force majeure T9 |
-| Q27 | Databricks Agent Bricks | ~$107,711 (force majeure applied) | $107,710.89 | Y | 5 | 5 | 2 | 103.3 | – |  |
-| Q28 | Snowflake | $110,000 (cap, $45 over) | $110,000 | Y | 5 | 5 | 4 | 32.5 | – |  |
-| Q28 | Databricks Agent Bricks | $110,000 (cap) | $110,000 | Y | 5 | 5 | 1 | 105.1 | – |  |
-| Q29 | Snowflake | SUP-101, SUP-111; full 12-supplier table | SUP-101, SUP-111 | Y | 5 | 5 | 5 | 48.9 | – |  |
-| Q29 | Databricks Agent Bricks | SUP-101, SUP-111 | SUP-101, SUP-111 | Y | 5 | 5 | 3 | 51.2 | – |  |
-| Q30 | Snowflake | ~$1.30M (~$1,299K) | $1,304,732.41 | Y | 4 | 5 | 0 | 16.3 | – | Within 0.5%; summed from rounded figures |
-| Q30 | Databricks Agent Bricks | $1,299,233.62 | $1,304,732.41 | Y | 4 | 5 | 0 | 31.9 | – | Within 0.5% |
-| Q31 | Snowflake | SUP-101, breach terms, $400,000 | $400,000 | Y | 5 | 5 | 1 | 22.8 | – | Plus termination check |
-| Q31 | Databricks Agent Bricks | SUP-101 $11.34M; terms with § refs; $400,000; termination right (<70% every quarter) | $400,000 | Y | 5 | 5 | 1 | 104.8 | – | Went beyond the question |
+| Q | System | Answer (short) | Expected | Correct | Grounded | Relevant | Tool calls | Latency (s) | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| Q01 | Snowflake | 2,636 purchase orders were delivered in 2025. | 2,645 (all delivered; all orders were placed in 2025) **or** 2,636 (delivery date in 2025; 9 arrived Jan 2026) | Y | 5 | 5 | 2 | 19.5 |  |
+| Q01 | Databricks | 2,645 purchase orders were delivered in 2025. | 2,645 (all delivered; all orders were placed in 2025) **or** 2,636 (delivery date in 2025; 9 arrived Jan 2026) | Y | 5 | 5 | 4 | 129.6 | Rejected Genie's 0 (metric view filter `record_type = 'PO'`), re-queried |
+| Q02 | Snowflake | 234 purchase orders are still open. | 234 | Y | 5 | 5 | 1 | 17.3 |  |
+| Q02 | Databricks | 234 purchase orders are still open. | 234 | Y | 5 | 5 | 2 | 65.2 |  |
+| Q03 | Snowflake | NORTHWIND (SUP-102) delivered an average of about 1.36 days after the promised date. | 1.36 | Y | 5 | 5 | 1 | 19.6 |  |
+| Q03 | Databricks | NORTHWIND (SUP-102) delivered an average of 1.36 days late (about 1.4 days). | 1.36 | Y | 5 | 5 | 2 | 58.1 |  |
+| Q04 | Snowflake | Austin Assembly (PLT-01) had the highest unplanned downtime cost, at about $2.10M. | PLT-01 | Y | 5 | 5 | 3 | 30.9 |  |
+| Q04 | Databricks | Austin Assembly had the highest unplanned downtime cost: $2,100,100. | PLT-01 | Y | 5 | 5 | 2 | 60.6 |  |
+| Q05 | Snowflake | The GLOBEX COMPONENTS (SUP-103) contract allows a 5-day grace period. | 5 days | Y | 5 | 5 | 3 | 31.2 |  |
+| Q05 | Databricks | GLOBEX COMPONENTS (SUP-103) gets a 5-day grace period. | 5 days | Y | 5 | 5 | 2 | 54.6 |  |
+| Q06 | Snowflake | The WAYNE METALS (SUP-106) agreement caps liability at USD 120,000 per contract year. | $120,000.00 | Y | 5 | 5 | 1 | 86.3 |  |
+| Q06 | Databricks | The WAYNE METALS (SUP-106) cap is USD 120,000 per contract year. | $120,000.00 | Y | 5 | 5 | 2 | 34.5 |  |
+| Q07 | Snowflake | 564 or 504 late deliveries in 2025 | 513 (all delivered) **or** 504 (delivery date in 2025) | Y | 5 | 5 | 1 | 25.5 |  |
+| Q07 | Databricks | The answer depends on what counts as "late." By contract terms there were 504 late deliveries in 2025. Countin… | 513 (all delivered) **or** 504 (delivery date in 2025) | Y | 5 | 5 | 8 | 176.6 |  |
+| Q08 | Snowflake | Total downtime cost in 2025 was about $12.45M | $8,503,350.00 (unplanned) — or $12,447,450 total **if** it also gives unplanned and explains why that's the relevant figure | Y | 5 | 5 | 1 | 25.1 |  |
+| Q08 | Databricks | Total downtime cost in 2025 was $12,447,450. | $8,503,350.00 (unplanned) — or $12,447,450 total **if** it also gives unplanned and explains why that's the relevant figure | Y | 5 | 5 | 2 | 67.8 |  |
+| Q09 | Snowflake | Financial exposure in APAC is about $19.07M if you count suppliers based in APAC, or about $7.38M if you count… | $7,381,727.25 | Y | 5 | 5 | 1 | 31.2 |  |
+| Q09 | Databricks | Financial Exposure in APAC for 2025 is $18,857,445. | $7,381,727.25 | N | 2 | 3 | 2 | 106.0 | Supplier region only, 2025 filter: $18.86M. Plant-region figure not offered |
+| Q10 | Snowflake | APAC had the most late deliveries when you go by where the supplier is based: 278 of 1,052 deliveries (26.4%). | EMEA | P | 4 | 4 | 2 | 35.9 | Led with supplier region (APAC); gave EMEA by plant region as the alternative |
+| Q10 | Databricks | APAC had the most late deliveries: 273 under contract terms | EMEA | N | 2 | 3 | 0 | 25.9 | Supplier region only (APAC); offered to rerun by plant region |
+| Q11 | Snowflake | INITECH PARTS (SUP-104) delivered on time 75.6% of the time | 75.64% | Y | 5 | 5 | 1 | 26.0 |  |
+| Q11 | Databricks | INITECH PARTS (SUP-104) delivered 47.8% of orders on time in 2025 (131 of 274). Allowing for its 3-day contrac… | 75.64% | P | 4 | 4 | 2 | 108.6 | Led with 47.8% (any lateness); grace-period 75.9% second, on 274 orders |
+| Q12 | Snowflake | STARK INDUSTRIAL (SUP-105) had about $2.54M of late deliveries (43 orders), but only about $1.43M (23 orders) … | $2,541,813.52 | Y | 5 | 5 | 3 | 39.3 |  |
+| Q12 | Databricks | STARK INDUSTRIAL's late deliveries in 2025 were worth $2,541,814 under contract terms | $2,541,813.52 | Y | 5 | 5 | 2 | 118.5 |  |
+| Q13 | Snowflake | "Acme" matches two suppliers, ACME SUPPLIES (SUP-101) and ACME SUPPLY CO (SUP-110), with a combined financial … | Ask to clarify, OR give both: SUP-101=$11,555,037.15; SUP-110=$4,386,445.23 | Y | 5 | 5 | 5 | 46.6 |  |
+| Q13 | Databricks | There are two suppliers named Acme in the data, so I've given both. Together their Financial Exposure for 2025… | Ask to clarify, OR give both: SUP-101=$11,555,037.15; SUP-110=$4,386,445.23 | P | 4 | 4 | 2 | 98.8 | Both suppliers given; SUP-101 $11.34M (2025 filter), 1.9% under |
+| Q14 | Snowflake | ACME SUPPLY CO (SUP-110) had 42 late deliveries | 42 | Y | 5 | 5 | 1 | 30.6 |  |
+| Q14 | Databricks | ACME SUPPLY CO (SUP-110) had 42 late deliveries in 2025 under its contract terms. | 42 | Y | 5 | 5 | 0 | 21.9 |  |
+| Q15 | Snowflake | NORTHWINDS (SUP-111) had a financial exposure of about $3.67M ($3,668,150.38), all in the 2025 contract year. | $3,668,150.38 | Y | 5 | 5 | 2 | 32.3 |  |
+| Q15 | Databricks | NORTHWINDS (SUP-111) has a Financial Exposure of $3,668,150 for 2025. | $3,668,150.38 | Y | 5 | 5 | 1 | 36.6 |  |
+| Q16 | Snowflake | NORTHWIND (SUP-102) had 40 late purchase orders | 40 | Y | 5 | 5 | 1 | 22.9 |  |
+| Q16 | Databricks | NORTHWIND (SUP-102) had 38 late POs in 2025 under its contract terms. | 40 | P | 4 | 4 | 0 | 21.1 | 38 (2025 deliveries only) instead of 40 |
+| Q17 | Snowflake | ACME SUPPLIES (SUP-101) delivered 48,104 units late | 48,104 units | Y | 5 | 5 | 1 | 25.9 |  |
+| Q17 | Databricks | ACME SUPPLIES (SUP-101) delivered 47,069 units late in 2025 under its contract terms (more than 3 days late). | 48,104 units | P | 4 | 4 | 2 | 74.0 | 47,069 (2025 deliveries only) instead of 48,104 |
+| Q18 | Snowflake | 2.0% of financial exposure applies to ACME SUPPLY CO (SUP-110). | 2.0% | Y | 5 | 5 | 0 | 20.0 |  |
+| Q18 | Databricks | 2.0% of Financial Exposure applies to ACME SUPPLY CO (SUP-110). | 2.0% | Y | 5 | 5 | 0 | 21.6 |  |
+| Q19 | Snowflake | There's no trend: the C-12 inventory data looks stuck rather than real. | FLAT - no trend / no seasonality (constant 500) | Y | 5 | 5 | 2 | 38.7 |  |
+| Q19 | Databricks | There's no trend: C-12 shows exactly 500 units on hand every day of 2025. That almost certainly isn't real sto… | FLAT - no trend / no seasonality (constant 500) | Y | 5 | 5 | 4 | 175.5 |  |
+| Q20 | Snowflake | No, C-25 shows no seasonality, and its inventory data can't support that analysis. | FLAT - no trend / no seasonality (constant 500) | Y | 5 | 5 | 1 | 25.9 |  |
+| Q20 | Databricks | No, C-25 shows no seasonality, but that's because the data is broken, not because demand is steady. | FLAT - no trend / no seasonality (constant 500) | Y | 5 | 5 | 2 | 104.5 |  |
+| Q21 | Snowflake | Component C-29 was below safety stock on 164 plant-days | 164 | Y | 5 | 5 | 1 | 24.7 |  |
+| Q21 | Databricks | C-29 was below safety stock on 164 plant-days in 2025. | 164 | Y | 5 | 5 | 2 | 104.0 |  |
+| Q22 | Snowflake | C-29 (Fasteners Part 29) spent the most plant-days below safety stock: 164, all at Monterrey Plant. | C-29 | Y | 5 | 5 | 2 | 31.6 |  |
+| Q22 | Databricks | C-29 spent the most plant-days below safety stock: 164 (44.9% of the year), all at Monterrey Plant. | C-29 | Y | 5 | 5 | 2 | 105.3 |  |
+| Q23 | Snowflake | ACME SUPPLIES (SUP-101) had the most late deliveries with promised dates in Q3 2025: 50 of 131 delivered order… | SUP-101 | Y | 5 | 5 | 2 | 34.3 |  |
+| Q23 | Databricks | ACME SUPPLIES (SUP-101) had the most late deliveries with Q3 2025 promised dates: 50 under contract terms (82 … | SUP-101 | Y | 5 | 5 | 2 | 111.2 |  |
+| Q24 | Snowflake | ACME SUPPLIES (SUP-101): $11.56M. | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 2 | 55.2 |  |
+| Q24 | Databricks | The top 3 by Financial Exposure are ACME SUPPLIES ($11.34M), INITECH PARTS ($4.41M) and ACME SUPPLY CO ($4.39M… | SUP-101, SUP-104, SUP-110 | Y | 5 | 5 | 2 | 149.2 |  |
+| Q25 | Snowflake | You can claim USD 400,000 in liquidated damages from ACME SUPPLIES (SUP-101) for 2025. | $400,000.00 | Y | 5 | 5 | 0 | 24.5 |  |
+| Q25 | Databricks | You can claim USD 400,000 from ACME SUPPLIES for 2025. That's the full cap, and the figure is very unlikely to… | $400,000.00 | Y | 5 | 5 | 0 | 29.7 |  |
+| Q26 | Snowflake | You can claim about USD 176,300 ($176,300.34) from INITECH PARTS (SUP-104) for the 2025 contract year. | $178,320.42 | P | 4 | 4 | 2 | 34.5 | Filtered to 2025 deliveries (66 orders): ≈$176,300, 1.1% under |
+| Q26 | Databricks | You can claim about USD 176,300 from INITECH PARTS for 2025. | $178,320.42 | P | 4 | 4 | 1 | 61.7 | Filtered to 2025 deliveries (66 orders): ≈$176,300, 1.1% under |
+| Q27 | Snowflake | You can claim about USD 107,711 ($107,710.89) from STARK INDUSTRIAL (SUP-105) for the 2025 contract year. | $107,710.89 | Y | 5 | 5 | 2 | 35.8 |  |
+| Q27 | Databricks | You can claim about USD 107,700 from STARK INDUSTRIAL for 2025. | $107,710.89 | Y | 5 | 5 | 0 | 34.9 |  |
+| Q28 | Snowflake | You can claim USD 110,000 from NORTHWINDS (SUP-111) for the 2025 contract year, the full yearly cap. | $110,000.00 | Y | 5 | 5 | 1 | 28.1 |  |
+| Q28 | Databricks | You can claim USD 110,000 from NORTHWINDS (SUP-111) for 2025, which is exactly its cap. | $110,000.00 | Y | 5 | 5 | 0 | 30.4 |  |
+| Q29 | Snowflake | only two suppliers have penalties cut back by their liability cap: ACME SUPPLIES and NORTHWINDS. | SUP-101, SUP-111 | Y | 5 | 4 | 5 | 62.9 | Leaked a planning line ("Need SUP-108 LD terms.") into the answer |
+| Q29 | Databricks | Two suppliers are limited by their cap: ACME SUPPLIES and NORTHWINDS. | SUP-101, SUP-111 | Y | 5 | 5 | 3 | 57.5 |  |
+| Q30 | Snowflake | You can claim $1,299,233.62 in liquidated damages across all 12 suppliers for 2025. | $1,304,732.41 | Y | 5 | 5 | 2 | 37.7 |  |
+| Q30 | Databricks | The total you can claim across all 12 suppliers for 2025 is $1,299,234. | $1,304,732.41 | Y | 5 | 5 | 0 | 35.1 |  |
+| Q31 | Snowflake | The supplier with the highest financial exposure is ACME SUPPLIES (SUP-101), at $11.34M for 2025. You can clai… | $400,000.00 | Y | 5 | 5 | 1 | 38.3 |  |
+| Q31 | Databricks | ACME SUPPLIES (SUP-101) has the highest financial exposure, at $11.34M. You can claim the full $400,000 cap fr… | $400,000.00 | Y | 5 | 5 | 2 | 115.6 |  |
 
 ## Ownership
 

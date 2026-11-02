@@ -12,32 +12,31 @@ Databricks moved Supervisor Agent (GA February 2026) and Knowledge Assistant to 
 
 | | Snowflake Cortex Agent | Databricks Agent Bricks |
 |---|---|---|
-| Correct / partial / wrong (3 runs × 31 questions) | **75** / 16 / **2** | 71 / 12 / 10 |
-| Fully correct | **81%** | 76% |
-| Questions answered wrong in any run | **2** | 6 |
-| Median latency per run | **23–31 s** | 65–81 s (2–3.5× slower) |
+| Correct / partial / wrong (31 questions) | **29** / 2 / **0** | 24 / 5 / 2 |
+| Fully correct | **94%** | 77% |
+| Median latency | **31.2 s** | 65.2 s (~2× slower) |
 | Ownership score (1–5) | **4.4** | 2.4 |
 | Build effort score (1–5) | **4.5** | 2.0 |
 | Code to maintain | **None** | Agent project + setup notebook |
 
-Across three runs on the same model, Snowflake got more answers fully right (81% vs 76%) and gave **5× fewer wrong answers** (2 vs 10). Databricks took **2–3.5× longer** per answer and needed much more setup and code. In the first run alone Databricks had 2 more fully correct answers; that didn't hold up over the repeat runs. The shortcomings below explain why.
+On the same model, Snowflake answered **29 of 31 fully correctly with no wrong answers** (94% vs 77%). Databricks gave 2 wrong answers and 5 partials, took **about 2× longer** per answer, and needed much more setup and code. The shortcomings below explain why.
 
 ## 1. Genie's auto-generated metric view contains silent errors
 
 | Problem | Evidence | Effect |
 |---|---|---|
 | **Wrong filter value** | Genie filters `record_type = 'PO'`, but the value in the view is `'PURCHASE_ORDER'` | Purchase-order counts return **0 / null**: delivered, open, late and lag. The measures are correct when queried directly (234 open, 2,645 delivered) |
-| **"Late" ignores the contract** | The `late` / `on_time_delivery_rate` measures use lag > 0. The grace-period rule exists only as a separate `contract_breach_rate` measure | On-time rate 47.6% instead of 75.64% (Q11); late value $7.24M instead of $2.54M (Q12) |
+| **"Late" ignores the contract** | The `late` / `on_time_delivery_rate` measures use lag > 0. The grace-period rule exists only as a separate `contract_breach_rate` measure | The agent led with a 47.8% on-time rate (any lateness) before the contract figure (Q11) |
 | **No financial-exposure measure** | Genie answers "exposure" with total PO spend | Exposure inflated 2–3× (for example $29.89M vs $11.56M for ACME SUPPLIES) |
-| **Lag clamped at 0** | Early deliveries counted as 0 days | Average lag 2.3 days instead of 1.36 (Q03) |
+| **Lag clamped at 0** | Early deliveries counted as 0 days | Average lag 2.3 days instead of 1.36 when the agent uses the measure |
 
 These errors return plausible-looking numbers, so they're easy to miss without a test set.
 
 ## 2. The agent spends its effort working around Genie
 
-- **The wins come from the model, not Genie.** Opus 5.5 rejected Genie's 0 (Q01) and Genie's spend-based exposure (Q13), then re-queried the raw tables using the contract rules. That's why Databricks' accuracy rose from 39% (Sonnet 4.5) to 77%.
-- **The workarounds are slow.** Up to **8 tool calls** per question, with 100–170 s on the hardest questions. Median latency was 65–81 s per run, against 23–31 s for Snowflake.
-- **The failures come from trusting Genie's measures** (Q03, Q07, Q11, Q12). Q09 (APAC exposure) was wrong in all three runs: the agent never offered the plant-region figure. When the agent accepted Genie's number, the answer was wrong.
+- **The wins come from the model, not Genie.** Opus 5.5 rejected Genie's 0 (Q01) and Genie's spend-based exposure (Q13), then re-queried the raw tables using the contract rules. That's how Databricks reached 77%.
+- **The workarounds are slow.** Up to **8 tool calls** per question (Snowflake's maximum was 5), with 100–130 s on the hardest questions. Median latency was 65.2 s, against 31.2 s for Snowflake.
+- **The misses come from Genie's defaults.** Q09 (APAC exposure) and Q10 (region with most late deliveries) were wrong: the agent grouped by supplier region and never offered the plant-region figure. Q11, Q16 and Q17 were partial because it led with "any lateness" or filtered to 2025 deliveries.
 - **Genie's own model can't be chosen.** Changing the Agent Bricks model only changes orchestration. Every data question still goes through Genie, so the metric-view errors stay whatever model you pick.
 
 ## 3. Using a new model needed debugging and code changes
@@ -70,18 +69,19 @@ These errors return plausible-looking numbers, so they're easy to miss without a
 ## Where Databricks did well
 
 - **More consistent citations.** It cited contract section numbers (§5.1, §7.1, §8.1) more often than Snowflake.
-- **Look-alike names in run 1:** 6/6 on Tier 3, against 3/3/0 for Snowflake. Over three runs Snowflake led this tier (14/4/0 vs 12/6/0).
+- **Thorough tables.** Answers often included full breakdowns (by quarter, by supplier, before and after force majeure) that make the figures easy to check.
 - **Multi-step contract questions:** with Opus 5.5 it found extra relevant facts. On Q31 it found that ACME SUPPLIES was below 70% on-time in every quarter, which gives a termination right.
 
 ## Where Snowflake fell short
 
-- **Questions using "late":** in runs 1 and 2 it often led with the `IS_LATE` flag before giving the grace-period figure. By run 3 it led with the grace-period figure.
-- **Region:** it defaulted to supplier region rather than plant region (Q10 partial in all three runs; Q09 wrong once).
+- **Region:** on Q10 it led with supplier region and gave the plant-region answer (EMEA) second.
+- **Date scope:** on Q26 it filtered to deliveries dated 2025, about 1% under the expected figure (Databricks did the same).
+- **Answer hygiene:** on Q29 a planning note ("Need SUP-108 LD terms.") leaked into the answer.
 - **Citations:** section numbers were cited less consistently.
 - **Business rules:** Autopilot didn't encode the grace-period rule or the exposure formula either. Snowflake recovered more often, but both semantic layers would need curation for production.
 
 ## Limitations
 
-- Three runs per platform (93 answers each), on synthetic data with seeded traps that target known Genie failure patterns.
+- One run per platform, on synthetic data with seeded traps that target known Genie failure patterns.
 - Questions were sent through the APIs, not the chat UIs.
 - A token or cost comparison wasn't completed.

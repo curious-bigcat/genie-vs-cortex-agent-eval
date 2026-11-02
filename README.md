@@ -28,15 +28,14 @@ Sources: [Databricks October 2026 release notes](https://docs.databricks.com/gcp
 
 | | Snowflake Cortex Agent | Databricks Agent Bricks |
 |---|---|---|
-| Correct / partial / wrong (3 runs × 31 questions) | **75** / 16 / **2** | 71 / 12 / 10 |
-| Fully correct | **81%** | 76% |
-| Questions answered wrong in any run | **2** | 6 |
-| Median latency per run | **23–31 s** | 65–81 s |
+| Correct / partial / wrong (31 questions) | **29** / 2 / **0** | 24 / 5 / 2 |
+| Fully correct | **94%** | 77% |
+| Median latency | **31.2 s** | 65.2 s |
 | Ownership score (1–5) | **4.4** | 2.4 |
 | Build effort score (1–5) | **4.5** | 2.0 |
 | Code to maintain | **None** | Agent project + notebook |
 
-> **Read next:** [`eval/observations.md`](eval/observations.md) covers the Databricks Genie and Agent Bricks shortcomings found in these runs: silent metric-view errors, Opus 5.5 breaking the template, about 7 setup surfaces, slow workarounds. It also lists where each platform did well.
+> **Read next:** [`eval/observations.md`](eval/observations.md) covers the Databricks Genie and Agent Bricks shortcomings found in this run: silent metric-view errors, Opus 5.5 breaking the template, about 7 setup surfaces, slow workarounds. It also lists where each platform did well.
 > Full per-question scores: [`eval/scorecard.md`](eval/scorecard.md).
 
 ## Repo layout
