@@ -29,7 +29,6 @@ setup/databricks/       databricks_setup.ipynb
 eval/questions.md       31 questions with expected answers
 eval/scorecard.md       scores from the reference run
 eval/observations.md    Databricks shortcomings and other findings
-eval/ground_truth.sql   optional: checks the data matches on both platforms
 docs/architecture.png   architecture and results diagram
 ```
 
@@ -147,7 +146,6 @@ agentbricks doctor . && agentbricks deploy    # prints the app URL
    | Relevant | 1–5 |
    | Tool calls and latency | From the traces (see below) |
 
-3. **Optional:** run `eval/ground_truth.sql` on both platforms to confirm the data matches.
 
 **Tool calls and latency per question**
 
