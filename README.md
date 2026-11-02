@@ -8,6 +8,22 @@ Both agents use **Claude Opus 5.5**, the same data and contracts, the same 31 qu
 
 ![Architecture: Snowflake Cortex Agent vs Databricks Agent Bricks](docs/architecture.png)
 
+## Why this project
+
+Databricks changed its agent products within months of launching them:
+
+| Product | Launched | Change |
+|---|---|---|
+| Supervisor Agent | GA February 2026 | Moved to **legacy** in the October 2026 release notes |
+| Knowledge Assistant | 2025–2026 | Moved to **legacy** in the October 2026 release notes |
+| Supervisor API | Beta April 2026 | **End of life** September 30, 2026 |
+
+For new agents, Databricks now recommends writing your own agent loop and deploying it with the **Agent Bricks CLI**. Customers who built on the declarative products have to migrate to a code-first project they own and maintain.
+
+This project tests that recommended path against Snowflake Cortex Agent on the same use case, and documents what it takes and where it falls short.
+
+Sources: [Databricks October 2026 release notes](https://docs.databricks.com/gcp/en/release-notes/product/2026/october), [Supervisor API (deprecated)](https://docs.databricks.com/aws/en/agents/agent-bricks/supervisor-api).
+
 ## Results
 
 | | Snowflake Cortex Agent | Databricks Agent Bricks |

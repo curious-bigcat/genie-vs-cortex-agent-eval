@@ -4,6 +4,10 @@ What we saw in the reference run. Both agents used **Claude Opus 5.5**, the same
 
 ![Architecture: Snowflake Cortex Agent vs Databricks Agent Bricks](../docs/architecture.png)
 
+## Context: why we tested Agent Bricks
+
+Databricks moved Supervisor Agent (GA February 2026) and Knowledge Assistant to legacy in October 2026, and retired the Supervisor API (beta April 2026) on September 30, 2026. Its recommended path is now a code-first agent built with the Agent Bricks CLI. That's a migration for customers on the declarative products, and a sign that the product surface isn't stable yet. The shortcomings below are what we found on that recommended path. Sources: [October 2026 release notes](https://docs.databricks.com/gcp/en/release-notes/product/2026/october), [Supervisor API (deprecated)](https://docs.databricks.com/aws/en/agents/agent-bricks/supervisor-api).
+
 ## Results at a glance
 
 | | Snowflake Cortex Agent | Databricks Agent Bricks |
