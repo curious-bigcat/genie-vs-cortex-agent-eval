@@ -1,5 +1,7 @@
 # Scorecard
 
+Findings and Databricks shortcomings: [`observations.md`](observations.md). Architecture: [`../docs/architecture.png`](../docs/architecture.png).
+
 Snowflake Cortex Agent (`SC_RISK_AGENT`) vs Databricks Agent Bricks, **both on Claude Opus 5.5**. Same data, documents and 31 questions; auto-generated semantic layers (Semantic View Autopilot, Genie-generated metric view); no agent instructions; same two tools on each side (structured data + contract search).
 
 - **Snowflake:** orchestration model `auto`, which resolved to `claude-opus-5-5` (pin `claude-opus-5-5` to reproduce).
