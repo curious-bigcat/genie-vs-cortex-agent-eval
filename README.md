@@ -6,6 +6,10 @@ This project compares a **Databricks Agent Bricks agent** with a **Snowflake Cor
 - **Use case:** "A major supplier missed delivery dates. Determine the financial exposure, check the contract breach terms, and estimate the penalty we can claim."
 - **Out of scope:** external MCP and Jira.
 
+![Architecture: Snowflake Cortex Agent vs Databricks Agent Bricks](docs/architecture.png)
+
+*Both agents on Claude Opus 5.5, same data and 31 questions. Full results: [`eval/scorecard.md`](eval/scorecard.md).*
+
 ---
 
 ## 1. Project layout
@@ -20,6 +24,7 @@ eval/questions.md                  <- 32 questions with expected answers
 eval/scorecard.md                  <- scores from the reference run (both on Claude Opus 5.5)
 eval/usage_queries.sql             <- tool calls and latency from the traces (both platforms)
 eval/ground_truth.sql              <- optional: proves data parity across platforms
+docs/architecture.png              <- architecture and results diagram
 ```
 
 ## 2. What is compared
